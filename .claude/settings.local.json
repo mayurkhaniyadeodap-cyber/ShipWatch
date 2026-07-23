@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://api-customer.shreeanjani.co.in/tpapi/tracking/\" -Method GET -TimeoutSec 25; \"STATUS: $\\($r.StatusCode\\)\"; $r.Content.Substring\\(0,[Math]::Min\\(1500,$r.Content.Length\\)\\) } catch { \"ERR STATUS: $\\($_.Exception.Response.StatusCode.value__\\)\"; $s=$_.Exception.Response.GetResponseStream\\(\\); if\\($s\\){ $sr=New-Object System.IO.StreamReader\\($s\\); $sr.ReadToEnd\\(\\).Substring\\(0,[Math]::Min\\(1500,$sr.BaseStream.Length\\)\\) } else { $_.Exception.Message } })",
+      "PowerShell(Remove-Item -Recurse -Force \"app\\\\api\\\\delivered\" -Confirm:$false)",
+      "PowerShell(npm run build)",
+      "PowerShell($candidates = @\\(\"$env:ProgramFiles\\\\nodejs\", \"$env:APPDATA\\\\npm\", \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\", \"$env:LOCALAPPDATA\\\\nvm\", \"$env:LOCALAPPDATA\\\\Volta\\\\bin\", \"$env:LOCALAPPDATA\\\\fnm_multishells\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { Write-Output $c } }; Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell($paths = @\\(\"$env:ProgramFiles\\\\nodejs\\\\node.exe\", \"${env:ProgramFiles\\(x86\\)}\\\\nodejs\\\\node.exe\", \"$env:LOCALAPPDATA\\\\nvs\", \"$env:USERPROFILE\\\\scoop\\\\apps\\\\nodejs\", \"$env:USERPROFILE\\\\.nvm\", \"C:\\\\nvm4w\", \"C:\\\\tools\"\\); foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output \"FOUND: $p\" } }; [Environment]::GetEnvironmentVariable\\('Path','Machine'\\) -split ';' | Where-Object { $_ -match 'node|nvm|volta|fnm' }; [Environment]::GetEnvironmentVariable\\('Path','User'\\) -split ';' | Where-Object { $_ -match 'node|nvm|volta|fnm' })",
+      "PowerShell([Environment]::GetEnvironmentVariable\\('Path','Machine'\\); '---USER---'; [Environment]::GetEnvironmentVariable\\('Path','User'\\))",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\DeoDap\\\\AppData\\\\Local\" -Directory | Where-Object { $_.Name -match 'node|nvm|volta|fnm|pnpm|bun|deno' } | Select-Object -ExpandProperty FullName; Get-ChildItem \"C:\\\\Users\\\\DeoDap\\\\AppData\\\\Roaming\" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'node|nvm|npm' } | Select-Object -ExpandProperty FullName)"
+    ]
+  }
+}
