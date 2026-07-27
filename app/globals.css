@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  /* Accent — signal blue (data-ops). Separate from the warm semantic severity
+     colours below, which encode meaning, not brand. */
+  --color-brand: #2f6bed;
+  --color-brand-dark: #1e51c8;
+  --color-brand-tint: #eaf1fe;
+  --color-brand-border: #b9ccf7;
+
+  /* Cool-biased neutrals. */
+  --color-ink: #171a20;
+  --color-ink-2: #3d4450;
+  --color-sub: #6b7482;
+  --color-muted: #98a1b0;
+  --color-line: #e3e7ed;
+  --color-line-2: #dde3ea;
+  --color-line-3: #eef1f4;
+  --color-line-btn: #cbd2dc;
+  --color-canvas: #f5f7fa;
+  --color-thead: #fafbfc;
+  --color-zebra: #fafbfc;
+  --color-chipbg: #f1f4f7;
+
+  /* Semantic severity (warm — deliberately not the accent). */
+  --color-sev-amber-bg: #f8eedd;
+  --color-sev-amber-fg: #9a6410;
+  --color-sev-orange-bg: #fbe7d6;
+  --color-sev-orange-fg: #9a3412;
+  --color-sev-red-bg: #fbe9eb;
+  --color-sev-red-fg: #c81e2b;
+  --color-sev-deep: #991b1b;
+
+  /* Status pills. */
+  --color-status-info-bg: #e9eff5;
+  --color-status-info-fg: #3e5f7e;
+  --color-status-good-bg: #e4f3eb;
+  --color-status-good-fg: #167e4e;
+
+  /* Row severity stripe. */
+  --color-stripe-crit: #dc2b38;
+  --color-stripe-warn: #e39411;
+  --color-stripe-info: #6e8ca8;
+  --color-stripe-good: #29a06a;
+
+  --font-sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+}
+
+@keyframes swShimmer {
+  0% {
+    background-position: -500px 0;
+  }
+  100% {
+    background-position: 500px 0;
+  }
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
