@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   attemptsDisagree,
   canonStatus,
+  fmtCourierDate,
   fmtDate,
   fmtMoney,
   getJson,
@@ -164,10 +165,16 @@ export default function Drawer({ tab, row, onClose }: { tab: Tab; row: OrderApiR
   );
 }
 
+/** Courier APIs spell "no value" as a literal string — Trackon returns "NULL" in
+ *  NDR_REASON, others send "N/A" or "-". Treated as absence so the cell shows the
+ *  muted em-dash like every other empty field, instead of the word NULL. */
+const ABSENT = new Set(["null", "nil", "n/a", "na", "-", "--", "—", "undefined"]);
+
 function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
-  return s === "" ? null : s;
+  if (s === "") return null;
+  return ABSENT.has(s.toLowerCase()) ? null : s;
 }
 
 /** Side-by-side comparison of the courier's own live tracking ("Courier site")
@@ -205,7 +212,7 @@ function StatusComparison({
     ],
     [
       "Last update",
-      live ? str(live.current_timestamp) : null,
+      live ? str(fmtCourierDate(live.current_timestamp)) : null,
       str(row.last_status_updated_at ? fmtDate(row.last_status_updated_at) : null),
     ],
     ["NDR reason", live ? str(live.reason) : null, str(row.ndr_reason)],

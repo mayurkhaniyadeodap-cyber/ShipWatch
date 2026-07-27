@@ -191,6 +191,182 @@ export function fmtDate(d: string | null): string {
   return `${fmtDay(d)} ${d.slice(0, 4)}`;
 }
 
+// ---- courier "last update" timestamps ----
+//
+// Every integration reports the last scan time in its own shape: Trackon sends
+// "25072026 08:39", BlueDart "25-Jul-2026 0839", Delhivery an ISO string, and
+// Maruti/Ekart/Amazon "25/07/2026 08:39". The drawer used to print whichever
+// arrived, verbatim, next to a panel column formatted as "25 Jun 2026" — so the
+// two sides of the comparison were not comparable by eye.
+//
+// Detecting the shape here (rather than normalising each adapter) keeps the next
+// courier integration from reintroducing the bug: whatever it sends, it lands in
+// one of these forms or is shown untouched.
+
+const MONTH_BY_NAME: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/** Values couriers send to mean "nothing" — shown as "—" rather than as text. */
+const PLACEHOLDERS = new Set(["", "null", "nil", "n/a", "na", "-", "--", "undefined", "0"]);
+
+type DateParts = { y: number; mo: number; d: number; hh?: number; mi?: number };
+
+function isPlausibleYear(y: number): boolean {
+  return y >= 1990 && y <= 2100;
+}
+
+function daysInMonth(y: number, mo: number): number {
+  return new Date(Date.UTC(y, mo, 0)).getUTCDate();
+}
+
+/** A parse only counts if it lands on a real calendar date. Guards against
+ *  reading "13/13/2026" as a date, and against a compact-digit misread. */
+function isRealDate(p: DateParts): boolean {
+  if (!isPlausibleYear(p.y)) return false;
+  if (p.mo < 1 || p.mo > 12) return false;
+  if (p.d < 1 || p.d > daysInMonth(p.y, p.mo)) return false;
+  if (p.hh !== undefined && (p.hh > 23 || (p.mi ?? 0) > 59)) return false;
+  return true;
+}
+
+/** "08:39", "08:39:12" or BlueDart's compact "0839". */
+function parseClock(s: string | undefined): { hh: number; mi: number } | null {
+  if (!s) return null;
+  const colon = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(s);
+  if (colon) return { hh: Number(colon[1]), mi: Number(colon[2]) };
+  const compact = /^(\d{2})(\d{2})$/.exec(s);
+  if (compact) return { hh: Number(compact[1]), mi: Number(compact[2]) };
+  return null;
+}
+
+function withClock(base: Omit<DateParts, "hh" | "mi">, clock: string | undefined): DateParts {
+  const t = parseClock(clock);
+  return t ? { ...base, hh: t.hh, mi: t.mi } : { ...base };
+}
+
+/** Epoch seconds/millis → IST parts (couriers that send a bare number mean UTC). */
+function fromEpoch(ms: number): DateParts | null {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(ms));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return { y: get("year"), mo: get("month"), d: get("day"), hh: get("hour"), mi: get("minute") };
+}
+
+const CLOCK = String.raw`(\d{1,2}:\d{2}(?::\d{2})?|\d{4})`;
+
+function detectDate(s: string): DateParts | null {
+  // ISO / SQL: 2026-07-25, 2026-07-25T08:39:12+05:30, 2026-07-25 08:39:12
+  const iso = new RegExp(
+    String.raw`^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::\d{2})?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?`
+  ).exec(s);
+  if (iso) {
+    // An explicit zone means the wall clock isn't ours — convert to IST rather
+    // than printing a UTC time next to the panel's IST one.
+    if (iso[6]) {
+      const ms = Date.parse(s);
+      if (Number.isFinite(ms)) {
+        const p = fromEpoch(ms);
+        if (p && isRealDate(p)) return p;
+      }
+    }
+    const p: DateParts = { y: +iso[1], mo: +iso[2], d: +iso[3] };
+    if (iso[4] !== undefined) { p.hh = +iso[4]; p.mi = +iso[5]; }
+    if (isRealDate(p)) return p;
+  }
+
+  // Separated numeric: 25/07/2026, 25-7-26, 2026.07.25 — with optional time.
+  const sep = new RegExp(String.raw`^(\d{1,4})[/.\-](\d{1,2})[/.\-](\d{2,4})(?:[T ,]+${CLOCK})?$`).exec(s);
+  if (sep) {
+    const [a, b, c] = [Number(sep[1]), Number(sep[2]), Number(sep[3])];
+    if (sep[1].length === 4) {
+      const p = withClock({ y: a, mo: b, d: c }, sep[4]);
+      if (isRealDate(p)) return p;
+    } else {
+      const y = c < 100 ? 2000 + c : c;
+      // Indian couriers are day-first; only flip when the numbers force it
+      // (a value above 12 can only be a day).
+      const dayFirst = !(a <= 12 && b > 12);
+      const p = withClock(dayFirst ? { y, mo: b, d: a } : { y, mo: a, d: b }, sep[4]);
+      if (isRealDate(p)) return p;
+    }
+  }
+
+  // Month name, either order: "25-Jul-2026 0839", "25 July 2026", "Jul 25, 2026".
+  const dmy = new RegExp(String.raw`^(\d{1,2})[ \-/]+([A-Za-z]{3,9})\.?[ \-/]+(\d{2,4})(?:[ ,]+${CLOCK})?$`).exec(s);
+  if (dmy) {
+    const mo = MONTH_BY_NAME[dmy[2].slice(0, 3).toLowerCase()];
+    const y = Number(dmy[3]) < 100 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+    if (mo) {
+      const p = withClock({ y, mo, d: +dmy[1] }, dmy[4]);
+      if (isRealDate(p)) return p;
+    }
+  }
+  const mdy = new RegExp(String.raw`^([A-Za-z]{3,9})\.?[ \-/]+(\d{1,2}),?[ \-/]+(\d{2,4})(?:[ ,]+${CLOCK})?$`).exec(s);
+  if (mdy) {
+    const mo = MONTH_BY_NAME[mdy[1].slice(0, 3).toLowerCase()];
+    const y = Number(mdy[3]) < 100 ? 2000 + Number(mdy[3]) : Number(mdy[3]);
+    if (mo) {
+      const p = withClock({ y, mo, d: +mdy[2] }, mdy[4]);
+      if (isRealDate(p)) return p;
+    }
+  }
+
+  // Compact 8 digits, optional separate time: Trackon's "25072026 08:39".
+  // Whichever end holds a plausible year decides the order, so DDMMYYYY and
+  // YYYYMMDD are told apart without guessing.
+  const packed = new RegExp(String.raw`^(\d{8})(?:[T ]+${CLOCK})?$`).exec(s);
+  if (packed) {
+    const g = packed[1];
+    const asDMY = { y: +g.slice(4), mo: +g.slice(2, 4), d: +g.slice(0, 2) };
+    const asYMD = { y: +g.slice(0, 4), mo: +g.slice(4, 6), d: +g.slice(6) };
+    for (const cand of [asYMD, asDMY]) {
+      if (!isPlausibleYear(cand.y)) continue;
+      const p = withClock(cand, packed[2]);
+      if (isRealDate(p)) return p;
+    }
+  }
+
+  // Compact datetime: YYYYMMDDHHMM(SS).
+  const packedDt = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(?:\d{2})?$/.exec(s);
+  if (packedDt) {
+    const p: DateParts = {
+      y: +packedDt[1], mo: +packedDt[2], d: +packedDt[3], hh: +packedDt[4], mi: +packedDt[5],
+    };
+    if (isRealDate(p)) return p;
+  }
+
+  // Bare epoch (seconds or millis).
+  if (/^\d{10}$/.test(s)) { const p = fromEpoch(Number(s) * 1000); if (p && isRealDate(p)) return p; }
+  if (/^\d{13}$/.test(s)) { const p = fromEpoch(Number(s)); if (p && isRealDate(p)) return p; }
+
+  return null;
+}
+
+/** Any courier's "last update" string → "25 Jul 2026 08:39" (time dropped when
+ *  the courier didn't send one), matching the panel column's style.
+ *
+ *  Anything unrecognised is returned VERBATIM rather than guessed at — showing a
+ *  confidently wrong date in a mismatch table is worse than showing an ugly one. */
+export function fmtCourierDate(raw: string | null | undefined): string {
+  if (raw === null || raw === undefined) return "—";
+  const s = String(raw).trim();
+  if (PLACEHOLDERS.has(s.toLowerCase())) return "—";
+
+  const p = detectDate(s);
+  if (!p) return s;
+
+  const date = `${p.d} ${MONTHS[p.mo - 1]} ${p.y}`;
+  if (p.hh === undefined) return date;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date} ${pad(p.hh)}:${pad(p.mi ?? 0)}`;
+}
+
 export function fmtMoney(v: number | null): string {
   if (v === null || v === undefined) return "—";
   return `₹${Math.round(v).toLocaleString("en-IN")}`;
