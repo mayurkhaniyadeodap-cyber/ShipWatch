@@ -298,7 +298,7 @@ export function exportRows(tab: Tab, f: Filters): ListRow[] {
 // when it finishes, recomputing on the next request. Tiny (a few KB), process-local.
 const aggCache = new Map<string, { key: string; value: unknown }>();
 
-/** Cache key = the last successful sync's finish time (or "none" on a cold cache). */
+/** Last successful sync's finish time (or "none" on a cold cache). */
 function lastSyncKey(): string {
   try {
     const row = getDb()
@@ -311,7 +311,15 @@ function lastSyncKey(): string {
 }
 
 function cachedAgg<T>(name: string, compute: () => T): T {
-  const key = lastSyncKey();
+  // Keyed on the IST date AS WELL AS the last sync. The sync timestamp alone is
+  // NOT sufficient: TAT_BREACH_SQL / DAYS_PAST_EDD_SQL are relative to :today, so
+  // these rollups change at IST midnight even when nothing was written. Syncs are
+  // not guaranteed to land in between — this machine sleeps, and sync #320→#321
+  // left a 20h gap straddling midnight — during which the cached KPI/meta counts
+  // would keep serving yesterday's `today` while the (uncached) list and export
+  // queries computed the new one: 9046 vs 9637 breached, a 591-order / ~Rs 4L
+  // disagreement between the KPI cards and the table right below them.
+  const key = `${todayIST()}|${lastSyncKey()}`;
   const hit = aggCache.get(name);
   if (hit && hit.key === key) return hit.value as T;
   const value = compute();
@@ -349,7 +357,7 @@ function computeTatKpis() {
   return { ...agg, worst_courier: worst ?? null };
 }
 
-export function ndrKpis() {
+function computeNdrKpis() {
   const db = getDb();
   const agg = db
     .prepare(
@@ -368,7 +376,7 @@ export function ndrKpis() {
   return { ...agg, top_reason: top ?? null };
 }
 
-export function meta() {
+function computeMeta() {
   const db = getDb();
   const params = { today: todayIST() };
   const tatByCourier = db
