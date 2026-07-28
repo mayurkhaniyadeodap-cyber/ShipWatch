@@ -6,16 +6,30 @@
 /out/
 next-env.d.ts
 
-# local data cache
+# local data cache (SQLite DB + WAL + backups)
 /data/
+# stale copy of the cache from an earlier layout — not used by the app
+/data 1/
 
-# env
-.env*.local
+# env — the repo is PUBLIC, so ignore every variant and allow only the template.
+# `.env*.local` alone did NOT cover a plain `.env` / `.env.production`.
+.env
+.env.*
+!.env.example
 
-# courier credentials (plaintext secrets — never commit)
+# courier credentials (plaintext logins for every courier — never commit)
 /shipping_courier_credentials.csv
+
+# SSH keys / private keys — NEVER commit
+*.pem
+*.key
+
+# internal API/MCP notes (names the live MCP host)
+LIVE-FETCH-API-MCP.md
+
+# logs
+*.log
 
 # misc
 *.tsbuildinfo
 .DS_Store
-ats.pdf
