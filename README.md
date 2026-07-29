@@ -60,7 +60,7 @@ Each cycle:
 
 Orders are upserted page by page, so a failed sync leaves the existing cache
 available instead of replacing it with an incomplete result. The default rolling
-window is 180 days. A cold cache fills across multiple cycles, newest dates first.
+window is 90 days. A cold cache fills across multiple cycles, newest dates first.
 
 Important tuning options are documented in `.env.example`, including:
 

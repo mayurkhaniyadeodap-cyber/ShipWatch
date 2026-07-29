@@ -80,7 +80,7 @@ export const TAT_BREACH_SQL = `
 
 // Which rows are worth spending a courier call on.
 //
-// The cache is a 6-month window (~957k orders), but only the ~44k still in the
+// The cache is a 3-month window (~480k orders), but only the ~28k still in the
 // network are worth asking a courier about: a delivered parcel will not change
 // its status, and no tab surfaces it. Sweeping everything means a full pass
 // takes ~92h (measured) and the 800 calls/sync land on old delivered history

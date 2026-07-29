@@ -468,7 +468,7 @@ export default function DataTable({
                   <div className="mt-[5px] text-[12.5px] text-sub">
                     {hasFilters
                       ? "The current filter combination returned 0 orders."
-                      : "Nothing in the last 6 months — nice."}
+                      : "Nothing in the last 3 months — nice."}
                   </div>
                   {hasFilters && (
                     <button

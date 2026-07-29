@@ -1,24 +1,34 @@
 // Central knobs for ShipWatch. Change here, not inline.
 
-/** Rolling data window in days — 6 months. Every order with an order_date inside
+/** Rolling data window in days — 3 months. Every order with an order_date inside
  *  this window is cached; anything older is pruned each sync.
  *
- *  ~957k orders at this width (measured 2026-07-15), which is why the sync is
- *  incremental: it backfills the window once, day by day, then each cycle pulls
- *  only orders whose `updated_at` changed. Re-fetching the whole window every
- *  cycle (the old design) would be ~1,900 pages and ~30 min per sync.
+ *  ~480k orders at this width (~5.3k/day), which is why the sync is incremental:
+ *  it backfills the window once, day by day, then each cycle pulls only orders
+ *  whose `updated_at` changed. Re-fetching the whole window every cycle (the old
+ *  design) would be ~960 pages and ~15 min per sync.
+ *
+ *  Narrowed from 180d to 90d on 2026-07-29. At 180d the TAT tab was dominated by
+ *  ~1,000 orders more than 90 days past EDD whose PANEL status is simply frozen —
+ *  sampling them against the couriers showed "Under Investigation", "Lost",
+ *  "Delivered" and RTO, i.e. shipments that had long since resolved without the
+ *  panel ever closing them out. They are unactionable by definition (nobody
+ *  chases a 4-month-old docket) and they crowded out the breaches that can still
+ *  be saved. 90 days keeps the whole actionable range and drops the dead tail.
  *
  *  Widening this is cheap in steady state (the incremental phase is unaffected)
- *  but re-opens the backfill for the newly-exposed days, and costs ~1.2GB of
- *  SQLite per 6 months at ~1.2KB/row. */
-export const WINDOW_DAYS = Number(process.env.WINDOW_DAYS) || 180;
+ *  but re-opens the backfill for the newly-exposed days, and costs ~600MB of
+ *  SQLite per 3 months at ~1.2KB/row. */
+export const WINDOW_DAYS = Number(process.env.WINDOW_DAYS) || 90;
 
 /** How much of each sync may go to backfilling history. Only spent while the
  *  backfill cursor hasn't reached the window edge — once the window is filled,
  *  this phase is a no-op and every sync is just the (cheap) incremental pull.
  *  At ~5.3k orders/day (~11 pages, ~6s) this fills ~10 days per cycle; a cold
- *  180-day backfill therefore takes ~18 cycles. Raise it to fill faster at the
- *  cost of a longer, heavier sync. */
+ *  90-day backfill therefore takes ~9 cycles at the default. Raise it to fill
+ *  faster at the cost of a longer, heavier sync — and note that raising it is
+ *  self-limiting rather than a permanent load increase, because the phase stops
+ *  running entirely once the cursor reaches the window edge. */
 export const BACKFILL_BUDGET_MS = Number(process.env.BACKFILL_BUDGET_MS) || 60_000;
 
 /** Days of overlap re-pulled by the incremental phase, on top of the days since

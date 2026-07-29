@@ -1,6 +1,6 @@
 // Sync engine: in-process singleton job, INCREMENTAL.
 //
-// The cache covers a rolling WINDOW_DAYS (180d ≈ 957k orders). That is far too
+// The cache covers a rolling WINDOW_DAYS (90d ≈ 480k orders). That is far too
 // much to re-fetch every cycle, so the sync is split:
 //
 //   Phase 1 "Incremental"  — orders whose `updated_at` falls in the last few days
